@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../services/tattoo_api_service.dart';
@@ -81,6 +83,8 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _isLoading = true);
 
     try {
+      print('🔄 [Auth] Starting ${_isLoginMode ? "login" : "signup"}...');
+
       final result = _isLoginMode
           ? await widget.apiService.login(
               email: _emailController.text.trim(),
@@ -92,12 +96,21 @@ class _AuthScreenState extends State<AuthScreen> {
               password: _passwordController.text,
             );
 
+      print('✅ [Auth] Success: token=${result.token}, user=${result.user}');
+
       if (!mounted) return;
-      widget.onLoginSuccess(result.token, result.user);
-    } catch (e) {
+      widget.onLoginSuccess(result.token, result.user ?? {});
+    } on HttpException catch (e) {
+      print('❌ [Auth] HttpException: ${e.message}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('HttpException: ', ''))),
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      print('❌ [Auth] Unexpected error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Connection error: ${e.toString()}')),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

@@ -11,23 +11,18 @@ import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
 const _tokenKey = 'jwt_token';
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load();
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString(_tokenKey);
-  runApp(InkAI(hasToken: token != null && token.isNotEmpty));
-}
-
-class InkAI extends StatelessWidget {
-  final bool hasToken;
-
-  const InkAI({super.key, required this.hasToken});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print('⚠️ [main] dotenv load failed: $e');
+  }
+  runApp(
+    MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Ink AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -37,19 +32,61 @@ class InkAI extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: hasToken
-          ? const TattooStudioScreen()
-          : AuthScreen(
-              apiService: TattooApiService(),
-              onLoginSuccess: _onLoginSuccess,
-            ),
-    );
+      home: const _HomeRouter(),
+    ),
+  );
+}
+
+class _HomeRouter extends StatefulWidget {
+  const _HomeRouter();
+
+  @override
+  State<_HomeRouter> createState() => _HomeRouterState();
+}
+
+class _HomeRouterState extends State<_HomeRouter> {
+  bool _checking = true;
+  bool _hasToken = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSession();
+  }
+
+  Future<void> _loadSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_tokenKey);
+      if (mounted) {
+        setState(() {
+          _hasToken = token != null && token.isNotEmpty;
+          _checking = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_checking) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return _hasToken
+        ? const TattooStudioScreen()
+        : AuthScreen(
+            apiService: TattooApiService(),
+            onLoginSuccess: _onLoginSuccess,
+          );
   }
 
   void _onLoginSuccess(String token, Map<String, dynamic> user) {
     SharedPreferences.getInstance().then((prefs) {
       prefs.setString(_tokenKey, token);
     });
+    navigatorKey.currentState?.pushReplacement(
+      MaterialPageRoute(builder: (_) => const TattooStudioScreen()),
+    );
   }
 }
 

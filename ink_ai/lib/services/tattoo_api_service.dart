@@ -12,11 +12,23 @@ class AuthResult {
   AuthResult({required this.token, required this.user});
 
   factory AuthResult.fromJson(Map<String, dynamic> json) {
-    return AuthResult(
-      token: json['token'] as String,
-      user: json['user'] as Map<String, dynamic>,
-    );
+    final token = json['token'];
+    final user = json['user'];
+    if (token is! String || token.isEmpty) {
+      throw HttpException('Authentication token missing in server response');
+    }
+    if (user is! Map<String, dynamic>) {
+      throw HttpException('User data missing in server response');
+    }
+    return AuthResult(token: token, user: user);
   }
+}
+
+class ConfigException implements Exception {
+  final String message;
+  ConfigException(this.message);
+  @override
+  String toString() => message;
 }
 
 class TattooApiService {
@@ -27,53 +39,88 @@ class TattooApiService {
   TattooApiService({
     http.Client? client,
   }) : _client = client ?? http.Client() {
-    baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000';
-    endpoint = '${baseUrl}api/generate-tattoo';
+    baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+    if (baseUrl.isEmpty) {
+      throw ConfigException('API Base URL configuration missing in .env');
+    }
+    final normalized = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+    endpoint = '${normalized}api/generate-tattoo';
   }
 
-  String get _authBase => '${baseUrl}api/auth';
+  String get _authBase {
+    final normalized = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+    return '${normalized}api/auth';
+  }
 
   Future<AuthResult> signup({
     required String name,
     required String email,
     required String password,
   }) async {
+    final url = '${_authBase}/signup';
+    print('📤 [API] POST $url');
+
     final response = await _client.post(
-      Uri.parse('$_authBase/signup'),
+      Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'name': name, 'email': email, 'password': password}),
     );
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    print('📥 [API] Response status: ${response.statusCode}');
+    print('📥 [API] Response body: ${response.body}');
 
     if (response.statusCode != 201) {
-      throw HttpException(
-        body['message'] as String? ?? 'Signup failed',
-      );
+      final body = _safeDecode(response.body);
+      final message = body['message'] as String? ?? 'Signup failed';
+      print('❌ [API] Signup error: $message');
+      throw HttpException(message);
     }
 
-    return AuthResult.fromJson(body);
+    final decoded = _safeDecode(response.body);
+    if (decoded.isEmpty) {
+      throw HttpException('Invalid JSON response from server');
+    }
+    return AuthResult.fromJson(decoded);
   }
 
   Future<AuthResult> login({
     required String email,
     required String password,
   }) async {
+    final url = '${_authBase}/login';
+    print('📤 [API] POST $url');
+
     final response = await _client.post(
-      Uri.parse('$_authBase/login'),
+      Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    print('📥 [API] Response status: ${response.statusCode}');
+    print('📥 [API] Response body: ${response.body}');
 
     if (response.statusCode != 200) {
-      throw HttpException(
-        body['message'] as String? ?? 'Login failed',
-      );
+      final body = _safeDecode(response.body);
+      final message = body['message'] as String? ?? 'Login failed';
+      print('❌ [API] Login error: $message');
+      throw HttpException(message);
     }
 
-    return AuthResult.fromJson(body);
+    final decoded = _safeDecode(response.body);
+    if (decoded.isEmpty) {
+      throw HttpException('Invalid JSON response from server');
+    }
+    return AuthResult.fromJson(decoded);
+  }
+
+  Map<String, dynamic> _safeDecode(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {};
+    } catch (_) {
+      return {};
+    }
   }
 
   Future<Uint8List> generateTattooPreview({
