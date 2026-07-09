@@ -1,13 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:screenshot/screenshot.dart';
 
 import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
-void main() {
+void main() async {
+  await dotenv.load();
   runApp(const InkAI());
 }
 

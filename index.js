@@ -2,16 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const multer = require('multer');
-const Replicate = require('replicate');
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -33,22 +28,38 @@ app.post('/api/generate-tattoo', upload.fields([
       return res.status(400).json({ success: false, message: 'image is required' });
     }
 
-    const imageDataUri = `data:${image.mimetype};base64,${image.buffer.toString('base64')}`;
+    const base64Image = image.buffer.toString('base64');
+    const mimeType = image.mimetype || 'image/png';
+    const imageDataUri = `data:${mimeType};base64,${base64Image}`;
 
-    const output = await replicate.run(
-      'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b',
-      {
-        input: {
-          prompt: prompt || 'refine this tattoo design on skin, photorealistic, high quality',
-          image: imageDataUri,
-          prompt_strength: 0.85,
-        },
+    const segmindRes = await fetch('https://api.segmind.com/v1/sdxl-img2img', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.SEGMIND_API_KEY,
+        'Content-Type': 'application/json',
       },
-    );
+      body: JSON.stringify({
+        image: imageDataUri,
+        prompt: prompt || 'refine this tattoo design on skin, photorealistic, high quality, intricate details, sharp focus',
+        negative_prompt: 'ugly, blurry, low quality, distorted, deformed, disfigured, bad anatomy, watermark, text',
+        samples: 1,
+        scheduler: 'UniPC',
+        base_model: 'juggernaut',
+        num_inference_steps: 30,
+        guidance_scale: 6.5,
+        strength: 0.65,
+        seed: -1,
+        base64: false,
+      }),
+    });
 
-    const imageUrl = output[0];
-    const imageResponse = await fetch(imageUrl);
-    const buffer = Buffer.from(await imageResponse.arrayBuffer());
+    if (!segmindRes.ok) {
+      const errorText = await segmindRes.text();
+      throw new Error(`Segmind API error ${segmindRes.status}: ${errorText}`);
+    }
+
+    const arrayBuffer = await segmindRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     res.set('Content-Type', 'image/png');
     res.send(buffer);

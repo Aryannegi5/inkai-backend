@@ -38,6 +38,7 @@ dependencies:
   screenshot: ^3.0.0
   http: ^1.2.0
   gal: ^2.3.0
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +67,7 @@ flutter:
     - assets/demo_chest.png
     - assets/demo_back.png
     - assets/demo_calf.png
+    - .env
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

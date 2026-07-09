@@ -1,31 +1,20 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// !!!   IMPORTANT: You MUST replace 192.168.1.X below with your computer's       !!!
-// !!!   actual IPv4 address before running the app.                              !!!
-// !!!                                                                           !!!
-// !!!   How to find your IPv4 address:                                          !!!
-// !!!     macOS/Linux : Run `ifconfig` or `ip addr` in your terminal            !!!
-// !!!     Windows    : Run `ipconfig` in Command Prompt                         !!!
-// !!!                                                                           !!!
-// !!!   Look for an entry like "inet 192.168.1.42" (usually under en0/wlan0).   !!!
-// !!!   Replace 192.168.1.X with that number.                                  !!!
-// !!!   Do NOT use "localhost" or "127.0.0.1" — the Android emulator/device     !!!
-// !!!   needs your host machine's LAN IP.                                        !!!
-// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-const kBaseUrl = 'http://192.168.1.X:3000';
-
 class TattooApiService {
-  final String baseUrl;
+  late final String baseUrl;
+  late final String endpoint;
   final http.Client _client;
 
   TattooApiService({
-    this.baseUrl = kBaseUrl,
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  }) : _client = client ?? http.Client() {
+    baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000';
+    endpoint = '${baseUrl}api/generate-tattoo';
+  }
 
   Future<Uint8List> generateTattooPreview({
     required Uint8List image,
@@ -33,7 +22,7 @@ class TattooApiService {
   }) async {
     final request = http.MultipartRequest(
       'POST',
-      Uri.parse('$baseUrl/generate'),
+      Uri.parse(endpoint),
     );
 
     request.files.add(
