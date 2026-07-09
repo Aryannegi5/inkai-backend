@@ -36,9 +36,8 @@ app.post('/api/generate-tattoo', upload.fields([
 
     const base64Image = image.buffer.toString('base64');
 
-    const model = ai.models.getModel({ model: 'gemini-2.5-flash' });
-
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-image',
       contents: [
         {
           role: 'user',
