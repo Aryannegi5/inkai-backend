@@ -35,10 +35,12 @@ app.post('/api/generate-tattoo', upload.fields([
 
     const chat = ai.chats.create({ model: 'gemini-2.5-flash-image' });
 
-    const response = await chat.sendMessage([
-      { inlineData: { data: base64Image, mimeType } },
-      { text: prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo' },
-    ]);
+    const response = await chat.sendMessage({
+      message: [
+        { inlineData: { data: base64Image, mimeType } },
+        { text: prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo' },
+      ],
+    });
 
     let imageBuffer = null;
 
