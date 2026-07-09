@@ -4,7 +4,7 @@ import 'package:ink_ai/main.dart';
 
 void main() {
   testWidgets('TattooStudioScreen renders correctly', (WidgetTester tester) async {
-    await tester.pumpWidget(const InkAI());
+    await tester.pumpWidget(const InkAI(hasToken: true));
 
     expect(find.text('Design Your Ink'), findsOneWidget);
     expect(find.text('Upload Body Part'), findsOneWidget);

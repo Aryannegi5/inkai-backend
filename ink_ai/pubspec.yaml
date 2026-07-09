@@ -39,6 +39,7 @@ dependencies:
   http: ^1.2.0
   gal: ^2.3.0
   flutter_dotenv: ^5.2.1
+  shared_preferences: ^2.3.0
 
 dev_dependencies:
   flutter_test:

@@ -4,17 +4,26 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:screenshot/screenshot.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'screens/auth_screen.dart';
 import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
+const _tokenKey = 'jwt_token';
+
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load();
-  runApp(const InkAI());
+  final prefs = await SharedPreferences.getInstance();
+  final token = prefs.getString(_tokenKey);
+  runApp(InkAI(hasToken: token != null && token.isNotEmpty));
 }
 
 class InkAI extends StatelessWidget {
-  const InkAI({super.key});
+  final bool hasToken;
+
+  const InkAI({super.key, required this.hasToken});
 
   @override
   Widget build(BuildContext context) {
@@ -28,8 +37,19 @@ class InkAI extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const TattooStudioScreen(),
+      home: hasToken
+          ? const TattooStudioScreen()
+          : AuthScreen(
+              apiService: TattooApiService(),
+              onLoginSuccess: _onLoginSuccess,
+            ),
     );
+  }
+
+  void _onLoginSuccess(String token, Map<String, dynamic> user) {
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_tokenKey, token);
+    });
   }
 }
 
@@ -204,6 +224,36 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
       appBar: AppBar(
         title: const Text('Design Your Ink'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove(_tokenKey);
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (_) => AuthScreen(
+                    apiService: TattooApiService(),
+                    onLoginSuccess: (token, user) {
+                      SharedPreferences.getInstance().then((p) {
+                        p.setString(_tokenKey, token);
+                      });
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => const TattooStudioScreen(),
+                        ),
+                        (_) => false,
+                      );
+                    },
+                  ),
+                ),
+                (_) => false,
+              );
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
