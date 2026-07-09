@@ -35,35 +35,57 @@ app.post('/api/generate-tattoo', upload.fields([
     }
 
     const base64Image = image.buffer.toString('base64');
-    const mimeType = image.mimetype || 'image/jpeg';
 
-    const chat = ai.chats.create({ model: 'gemini-2.5-flash-image' });
+    const model = ai.models.getModel({ model: 'gemini-2.5-flash' });
 
-    const response = await chat.sendMessage({
-      message: [
-        { inlineData: { data: base64Image, mimeType } },
-        { text: prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo' },
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              inlineData: {
+                data: base64Image,
+                mimeType: 'image/jpeg',
+              },
+            },
+            {
+              text: prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo',
+            },
+          ],
+        },
       ],
     });
 
+    const candidate = result.candidates?.[0];
+    if (!candidate) {
+      throw new Error('No candidates returned from Gemini');
+    }
+
+    const parts = candidate.content?.parts;
+    if (!parts || parts.length === 0) {
+      throw new Error('No content parts returned from Gemini');
+    }
+
     let imageBuffer = null;
 
-    for (const part of response.candidates[0].content.parts) {
-      if (part.inlineData) {
+    for (const part of parts) {
+      if (part.inlineData && part.inlineData.data) {
         imageBuffer = Buffer.from(part.inlineData.data, 'base64');
         break;
       }
     }
 
     if (!imageBuffer) {
-      throw new Error('Gemini did not return an image');
+      throw new Error('Gemini did not return an image in the response');
     }
 
     res.set('Content-Type', 'image/png');
     res.send(imageBuffer);
   } catch (error) {
-    console.error('Generation error:', error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Generation error:', error.message || error);
+    const message = error.message || 'Image generation failed';
+    res.status(500).json({ success: false, message });
   }
 });
 

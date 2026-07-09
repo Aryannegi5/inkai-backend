@@ -1,24 +1,30 @@
-import 'dart:io';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../services/tattoo_api_service.dart';
-
-class AuthScreen extends StatefulWidget {
-  final TattooApiService apiService;
-  final void Function(String token, Map<String, dynamic> user) onLoginSuccess;
-
-  const AuthScreen({
-    super.key,
-    required this.apiService,
-    required this.onLoginSuccess,
-  });
+class AuthScreen extends StatelessWidget {
+  const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: _AuthForm(),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthForm extends StatefulWidget {
+  @override
+  State<_AuthForm> createState() => _AuthFormState();
+}
+
+class _AuthFormState extends State<_AuthForm> with SingleTickerProviderStateMixin {
   bool _isLoginMode = true;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -30,8 +36,23 @@ class _AuthScreenState extends State<AuthScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  late final AnimationController _fadeController;
+  late final Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut);
+    _fadeController.value = 1.0;
+  }
+
   @override
   void dispose() {
+    _fadeController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -40,13 +61,16 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   void _toggleMode() {
-    setState(() {
-      _isLoginMode = !_isLoginMode;
-      _formKey.currentState?.reset();
-      _nameController.clear();
-      _emailController.clear();
-      _passwordController.clear();
-      _confirmPasswordController.clear();
+    _fadeController.reverse().then((_) {
+      setState(() {
+        _isLoginMode = !_isLoginMode;
+        _formKey.currentState?.reset();
+        _nameController.clear();
+        _emailController.clear();
+        _passwordController.clear();
+        _confirmPasswordController.clear();
+      });
+      _fadeController.forward();
     });
   }
 
@@ -70,51 +94,76 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    final form = _formKey.currentState;
+    if (form == null || !form.validate()) return;
 
     if (!_isLoginMode &&
         _passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      _showError('Passwords do not match');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      print('🔄 [Auth] Starting ${_isLoginMode ? "login" : "signup"}...');
-
-      final result = _isLoginMode
-          ? await widget.apiService.login(
-              email: _emailController.text.trim(),
-              password: _passwordController.text,
-            )
-          : await widget.apiService.signup(
-              name: _nameController.text.trim(),
-              email: _emailController.text.trim(),
-              password: _passwordController.text,
-            );
-
-      print('✅ [Auth] Success: token=${result.token}, user=${result.user}');
-
-      if (!mounted) return;
-      widget.onLoginSuccess(result.token, result.user ?? {});
-    } on HttpException catch (e) {
-      print('❌ [Auth] HttpException: ${e.message}');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      if (_isLoginMode) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      } else {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null && _nameController.text.trim().isNotEmpty) {
+          await user.updateDisplayName(_nameController.text.trim());
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      _showError(_authErrorMessage(e));
     } catch (e) {
-      print('❌ [Auth] Unexpected error: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connection error: ${e.toString()}')),
-      );
+      _showError('Connection error. Please check your internet and try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _authErrorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        return 'No account found with this email address';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again';
+      case 'invalid-credential':
+        return 'Invalid email or password combination';
+      case 'invalid-email':
+        return 'The email address is not valid';
+      case 'email-already-in-use':
+        return 'An account already exists with this email';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 6 characters';
+      case 'too-many-requests':
+        return 'Too many login attempts. Please wait and try again';
+      case 'user-disabled':
+        return 'This account has been disabled';
+      case 'operation-not-allowed':
+        return 'Email/password sign in is not enabled';
+      default:
+        return e.message ?? 'Authentication failed. Please try again';
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   @override
@@ -122,95 +171,102 @@ class _AuthScreenState extends State<AuthScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.auto_awesome,
-                  size: 64,
-                  color: colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Ink AI',
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _isLoginMode ? 'Welcome back' : 'Join us',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Form(
-                  key: _formKey,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    child: _isLoginMode
-                        ? _buildLoginForm(theme, colorScheme)
-                        : _buildSignupForm(theme, colorScheme),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: _isLoading ? null : _submit,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(_isLoginMode ? 'Login' : 'Create Account'),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                TextButton(
-                  onPressed: _isLoading ? null : _toggleMode,
-                  child: RichText(
-                    text: TextSpan(
-                      style: theme.textTheme.bodyMedium,
-                      children: [
-                        TextSpan(
-                          text: _isLoginMode
-                              ? "Don't have an account? "
-                              : 'Already have an account? ',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                        TextSpan(
-                          text: _isLoginMode ? 'Sign up' : 'Log in',
-                          style: TextStyle(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 88,
+          height: 88,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [colorScheme.primary, colorScheme.tertiary],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: const Icon(Icons.auto_awesome, size: 44, color: Colors.white),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Ink AI',
+          style: theme.textTheme.headlineLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _isLoginMode ? 'Welcome back' : 'Create your account',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 40),
+        Form(
+          key: _formKey,
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: _isLoginMode
+                ? _buildLoginForm(colorScheme)
+                : _buildSignupForm(colorScheme),
+          ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            onPressed: _isLoading ? null : _submit,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
                     ),
+                  )
+                : Text(
+                    _isLoginMode ? 'Login' : 'Create Account',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        TextButton(
+          onPressed: _isLoading ? null : _toggleMode,
+          child: RichText(
+            text: TextSpan(
+              style: theme.textTheme.bodyMedium,
+              children: [
+                TextSpan(
+                  text: _isLoginMode
+                      ? "Don't have an account? "
+                      : 'Already have an account? ',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+                TextSpan(
+                  text: _isLoginMode ? 'Sign up' : 'Log in',
+                  style: TextStyle(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildLoginForm(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildLoginForm(ColorScheme colorScheme) {
     return Column(
       key: const ValueKey('login'),
       children: [
@@ -219,9 +275,16 @@ class _AuthScreenState extends State<AuthScreen> {
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           validator: _validateEmail,
-          decoration: const InputDecoration(
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
             labelText: 'Email',
-            prefixIcon: Icon(Icons.email_outlined),
+            prefixIcon: const Icon(Icons.email_outlined),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -230,6 +293,7 @@ class _AuthScreenState extends State<AuthScreen> {
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.done,
           validator: _validatePassword,
+          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Password',
             prefixIcon: const Icon(Icons.lock_outlined),
@@ -239,25 +303,38 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Forgot password tapped')),
-              );
+              final email = _emailController.text.trim();
+              if (email.isEmpty) {
+                _showError('Enter your email first to reset your password');
+                return;
+              }
+              FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+              _showError('Password reset link sent to $email');
             },
-            child: const Text('Forgot Password?'),
+            child: Text(
+              'Forgot Password?',
+              style: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.w500),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSignupForm(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildSignupForm(ColorScheme colorScheme) {
     return Column(
       key: const ValueKey('signup'),
       children: [
@@ -265,9 +342,16 @@ class _AuthScreenState extends State<AuthScreen> {
           controller: _nameController,
           textInputAction: TextInputAction.next,
           validator: _validateName,
-          decoration: const InputDecoration(
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
             labelText: 'Full Name',
-            prefixIcon: Icon(Icons.person_outlined),
+            prefixIcon: const Icon(Icons.person_outlined),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -276,9 +360,16 @@ class _AuthScreenState extends State<AuthScreen> {
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           validator: _validateEmail,
-          decoration: const InputDecoration(
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
             labelText: 'Email',
-            prefixIcon: Icon(Icons.email_outlined),
+            prefixIcon: const Icon(Icons.email_outlined),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -287,6 +378,7 @@ class _AuthScreenState extends State<AuthScreen> {
           obscureText: _obscurePassword,
           textInputAction: TextInputAction.next,
           validator: _validatePassword,
+          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Password',
             prefixIcon: const Icon(Icons.lock_outlined),
@@ -295,6 +387,12 @@ class _AuthScreenState extends State<AuthScreen> {
                 _obscurePassword ? Icons.visibility_off : Icons.visibility,
               ),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            ),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
             ),
           ),
         ),
@@ -308,6 +406,7 @@ class _AuthScreenState extends State<AuthScreen> {
             if (value != _passwordController.text) return 'Passwords do not match';
             return null;
           },
+          style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Confirm Password',
             prefixIcon: const Icon(Icons.lock_outlined),
@@ -315,8 +414,13 @@ class _AuthScreenState extends State<AuthScreen> {
               icon: Icon(
                 _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
               ),
-              onPressed: () =>
-                  setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+            ),
+            filled: true,
+            fillColor: colorScheme.surfaceContainerHighest,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
             ),
           ),
         ),

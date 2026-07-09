@@ -4,25 +4,38 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:screenshot/screenshot.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 
 import 'screens/auth_screen.dart';
 import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
-const _tokenKey = 'jwt_token';
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   try {
-    await dotenv.load(fileName: ".env");
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
-    print('⚠️ [main] dotenv load failed: $e');
+    print('Firebase init error: $e');
   }
-  runApp(
-    MaterialApp(
-      navigatorKey: navigatorKey,
+
+  try {
+    await dotenv.load(fileName: '.env');
+  } catch (_) {
+    print('dotenv load failed, using fallback defaults');
+  }
+
+  runApp(const InkAI());
+}
+
+class InkAI extends StatelessWidget {
+  const InkAI({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
       title: 'Ink AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -32,60 +45,20 @@ void main() async {
         ),
         useMaterial3: true,
       ),
-      home: const _HomeRouter(),
-    ),
-  );
-}
-
-class _HomeRouter extends StatefulWidget {
-  const _HomeRouter();
-
-  @override
-  State<_HomeRouter> createState() => _HomeRouterState();
-}
-
-class _HomeRouterState extends State<_HomeRouter> {
-  bool _checking = true;
-  bool _hasToken = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSession();
-  }
-
-  Future<void> _loadSession() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString(_tokenKey);
-      if (mounted) {
-        setState(() {
-          _hasToken = token != null && token.isNotEmpty;
-          _checking = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _checking = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_checking) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    return _hasToken
-        ? const TattooStudioScreen()
-        : AuthScreen(
-            apiService: TattooApiService(),
-            onLoginSuccess: _onLoginSuccess,
-          );
-  }
-
-  void _onLoginSuccess(String token, Map<String, dynamic> user) {
-    SharedPreferences.getInstance().then((prefs) {
-      prefs.setString(_tokenKey, token);
-    });
-    navigatorKey.currentState?.pushReplacement(
-      MaterialPageRoute(builder: (_) => const TattooStudioScreen()),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasData && snapshot.data != null) {
+            return const TattooStudioScreen();
+          }
+          return const AuthScreen();
+        },
+      ),
     );
   }
 }
@@ -253,6 +226,10 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
     });
   }
 
+  Future<void> _logout() async {
+    await FirebaseAuth.instance.signOut();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -265,30 +242,7 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove(_tokenKey);
-              if (!context.mounted) return;
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (_) => AuthScreen(
-                    apiService: TattooApiService(),
-                    onLoginSuccess: (token, user) {
-                      SharedPreferences.getInstance().then((p) {
-                        p.setString(_tokenKey, token);
-                      });
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => const TattooStudioScreen(),
-                        ),
-                        (_) => false,
-                      );
-                    },
-                  ),
-                ),
-                (_) => false,
-              );
-            },
+            onPressed: _logout,
           ),
         ],
       ),
