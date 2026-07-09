@@ -31,16 +31,14 @@ app.post('/api/generate-tattoo', upload.fields([
     }
 
     const base64Image = image.buffer.toString('base64');
-    const mimeType = image.mimetype || 'image/png';
+    const mimeType = image.mimetype || 'image/jpeg';
 
     const chat = ai.chats.create({ model: 'gemini-2.5-flash-image' });
 
-    const response = await chat.sendMessage({
-      content: [
-        { inlineData: { mimeType, data: base64Image } },
-        prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo',
-      ],
-    });
+    const response = await chat.sendMessage([
+      { inlineData: { data: base64Image, mimeType } },
+      { text: prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo' },
+    ]);
 
     let imageBuffer = null;
 
