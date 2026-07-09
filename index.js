@@ -33,7 +33,7 @@ app.post('/api/generate-tattoo', upload.fields([
     const base64Image = image.buffer.toString('base64');
     const mimeType = image.mimetype || 'image/png';
 
-    const chat = ai.chats.create({ model: 'gemini-3.1-flash-image' });
+    const chat = ai.chats.create({ model: 'gemini-2.5-flash-image' });
 
     const response = await chat.sendMessage({
       content: [
