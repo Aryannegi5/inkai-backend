@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 
 import 'screens/auth_screen.dart';
+import 'screens/onboarding_flow.dart';
 import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
@@ -58,7 +59,7 @@ class InkAI extends StatelessWidget {
           if (snapshot.hasData && snapshot.data != null) {
             return const TattooStudioScreen();
           }
-          return const AuthScreen();
+          return const OnboardingFlow();
         },
       ),
     );
