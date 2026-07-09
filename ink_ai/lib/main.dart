@@ -40,9 +40,11 @@ class InkAI extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
+          seedColor: const Color(0xFF000000),
+          brightness: Brightness.light,
+          surface: const Color(0xFFFFFFFF),
         ),
+        scaffoldBackgroundColor: const Color(0xFFFFFFFF),
         useMaterial3: true,
       ),
       home: StreamBuilder<User?>(
