@@ -53,13 +53,6 @@ class _BodyCanvasScreenState extends State<BodyCanvasScreen> {
           ? _myBodyImage != null
           : _selectedDemoPart != null;
 
-  String get _designLabel {
-    if (widget.unsplashUrl != null) return 'Unsplash image';
-    if (widget.prompt != null) return 'text: "${widget.prompt}"';
-    if (widget.localImagePath != null) return 'uploaded image';
-    return 'selected design';
-  }
-
   Future<void> _pickBodyImage(ImageSource source) async {
     final picked = await _picker.pickImage(source: source);
     if (picked != null) {
@@ -80,33 +73,52 @@ class _BodyCanvasScreenState extends State<BodyCanvasScreen> {
     setState(() => _isGenerating = true);
 
     try {
-      String? designBase64;
-      String? textPrompt;
-
+      String designReference;
       if (widget.unsplashUrl != null) {
-        final bytes = await _downloadImage(widget.unsplashUrl!);
-        if (bytes != null) {
-          designBase64 = base64Encode(bytes);
-        }
+        designReference = widget.unsplashUrl!;
+      } else if (widget.prompt != null) {
+        designReference = widget.prompt!;
       } else if (widget.localImagePath != null) {
-        final bytes = await File(widget.localImagePath!).readAsBytes();
-        designBase64 = base64Encode(bytes);
+        designReference = 'the uploaded design image';
+      } else {
+        designReference = 'the selected design';
       }
 
-      if (_bodySource == _BodySource.demoCanvas) {
+      String? textPrompt;
+      String? designBase64;
+      String? bodyBase64;
+
+      if (_bodySource == _BodySource.myBody) {
+        if (_myBodyImage != null) {
+          final bytes = await _myBodyImage!.readAsBytes();
+          bodyBase64 = base64Encode(bytes);
+        }
+
+        if (widget.unsplashUrl != null) {
+          final bytes = await _downloadImage(widget.unsplashUrl!);
+          if (bytes != null) {
+            designBase64 = base64Encode(bytes);
+          }
+        } else if (widget.localImagePath != null) {
+          final bytes = await File(widget.localImagePath!).readAsBytes();
+          designBase64 = base64Encode(bytes);
+        }
+
         textPrompt =
-            'Generate a highly realistic photo of a $_selectedDemoPart with this tattoo design on it: $_designLabel';
-      } else if (widget.prompt != null) {
-        textPrompt = widget.prompt;
+            "You are an expert photo editor. Take the provided image of the user's real body part and seamlessly overlay this tattoo design onto their skin: $designReference. Do NOT generate a new body or change the background. Only edit the provided image to include the tattoo.";
+      } else {
+        textPrompt =
+            'Generate a highly realistic, photorealistic image of a $_selectedDemoPart featuring this tattoo design: $designReference.';
       }
 
       final payload = <String, dynamic>{};
       if (designBase64 != null) {
         payload['base64Image'] = designBase64;
       }
-      if (textPrompt != null && textPrompt.trim().isNotEmpty) {
-        payload['prompt'] = textPrompt;
+      if (bodyBase64 != null) {
+        payload['bodyBase64'] = bodyBase64;
       }
+      payload['prompt'] = textPrompt;
 
       final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
       if (baseUrl.isEmpty) {

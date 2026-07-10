@@ -116,51 +116,41 @@ class _ResultScreenState extends State<ResultScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final blurHeight = constraints.maxHeight * 0.4;
-                      return Stack(
-                        children: [
-                          Positioned.fill(child: _buildImage()),
-                          if (!_isPaid)
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              height: blurHeight,
-                              child: ClipRect(
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 5,
-                                    sigmaY: 5,
-                                  ),
-                                  child: Container(
-                                    color: Colors.white.withValues(alpha: 0.05),
-                                  ),
-                                ),
-                              ),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: _buildImage()),
+                      if (!_isPaid)
+                        Positioned.fill(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(
+                              sigmaX: 10,
+                              sigmaY: 10,
                             ),
-                        ],
-                      );
-                    },
+                            child: Container(
+                              color: Colors.white.withValues(alpha: 0.05),
+                            ),
+                          ),
+                        ),
+                      if (!_isPaid)
+                        Center(child: _buildPremiumOverlay()),
+                    ],
                   ),
                 ),
               ),
             ),
             if (_isPaid) _buildUnlockedActions(),
-            if (!_isPaid) _buildPremiumContainer(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPremiumContainer() {
+  Widget _buildPremiumOverlay() {
     return Container(
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      margin: const EdgeInsets.symmetric(horizontal: 28),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(24),
       ),
       padding: const EdgeInsets.fromLTRB(28, 28, 28, 32),
       child: Column(
