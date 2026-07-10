@@ -130,25 +130,17 @@ class _BodyCanvasScreenState extends State<BodyCanvasScreen> {
           ),
         );
       } else {
-        String message = 'Generation failed';
+        print('Response body: ${response.body}');
 
-        try {
-          final decoded = jsonDecode(response.body);
-          if (decoded is Map<String, dynamic> &&
-              decoded['success'] == false &&
-              decoded['message'] is String) {
-            message = decoded['message'] as String;
-          }
-        } catch (_) {
-          if (response.body.trim().startsWith('<')) {
-            message = 'Server error - received unexpected response';
-          }
-        }
+        final errorMsg = 'Error ${response.statusCode}: ${response.body}';
+        final truncated = errorMsg.length > 200
+            ? '${errorMsg.substring(0, 200)}...'
+            : errorMsg;
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(message),
+            content: Text(truncated),
             backgroundColor: const Color(0xFFD9383A),
           ),
         );
