@@ -27,33 +27,39 @@ app.post('/api/generate-tattoo', upload.fields([
   { name: 'image', maxCount: 1 },
 ]), async (req, res) => {
   try {
-    const image = req.files['image'] ? req.files['image'][0] : null;
-    const prompt = req.body.prompt;
+    const imageFile = req.files?.['image']?.[0] || null;
+    const prompt = req.body.prompt || '';
+    const base64Image = req.body.base64Image || null;
 
-    if (!image) {
-      return res.status(400).json({ success: false, message: 'image is required' });
+    const hasFile = !!imageFile;
+    const hasBase64 = !!base64Image;
+    const hasPrompt = !!prompt.trim();
+
+    if (!hasFile && !hasBase64 && !hasPrompt) {
+      return res.status(400).json({ success: false, message: 'Provide an image (upload or base64) or a text prompt.' });
     }
 
-    const base64Image = image.buffer.toString('base64');
+    let finalBase64 = base64Image;
+    let mimeType = 'image/jpeg';
+
+    if (imageFile) {
+      finalBase64 = imageFile.buffer.toString('base64');
+      mimeType = imageFile.mimetype || 'image/jpeg';
+    }
+
+    const finalPrompt = prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo';
+
+    const parts = [];
+
+    if (finalBase64) {
+      parts.push({ inlineData: { data: finalBase64, mimeType } });
+    }
+
+    parts.push({ text: finalPrompt });
 
     const result = await ai.models.generateContent({
       model: 'gemini-3.1-flash-image',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                data: base64Image,
-                mimeType: 'image/jpeg',
-              },
-            },
-            {
-              text: prompt || 'Refine this into a photorealistic tattoo on skin, high quality, sharp focus, intricate details, professional tattoo',
-            },
-          ],
-        },
-      ],
+      contents: [{ role: 'user', parts }],
     });
 
     const candidate = result.candidates?.[0];
@@ -61,14 +67,14 @@ app.post('/api/generate-tattoo', upload.fields([
       throw new Error('No candidates returned from Gemini');
     }
 
-    const parts = candidate.content?.parts;
-    if (!parts || parts.length === 0) {
+    const contentParts = candidate.content?.parts;
+    if (!contentParts || contentParts.length === 0) {
       throw new Error('No content parts returned from Gemini');
     }
 
     let imageBuffer = null;
 
-    for (const part of parts) {
+    for (const part of contentParts) {
       if (part.inlineData && part.inlineData.data) {
         imageBuffer = Buffer.from(part.inlineData.data, 'base64');
         break;
@@ -82,9 +88,8 @@ app.post('/api/generate-tattoo', upload.fields([
     res.set('Content-Type', 'image/png');
     res.send(imageBuffer);
   } catch (error) {
-    console.error('Generation error:', error.message || error);
-    const message = error.message || 'Image generation failed';
-    res.status(500).json({ success: false, message });
+    console.error(error);
+    res.status(500).json({ success: false, message: error.message || 'An unknown error occurred during generation.' });
   }
 });
 

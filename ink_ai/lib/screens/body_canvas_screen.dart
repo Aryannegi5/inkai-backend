@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
-import '../services/tattoo_api_service.dart';
 import 'result_screen.dart';
 
 enum _BodySource { myBody, demoCanvas }
@@ -46,7 +47,6 @@ class _BodyCanvasScreenState extends State<BodyCanvasScreen> {
   bool _isGenerating = false;
 
   final _picker = ImagePicker();
-  final _apiService = TattooApiService();
 
   bool get _canGenerate =>
       _bodySource == _BodySource.myBody
@@ -80,18 +80,17 @@ class _BodyCanvasScreenState extends State<BodyCanvasScreen> {
     setState(() => _isGenerating = true);
 
     try {
-      Uint8List? bodyBytes;
-      Uint8List? designBytes;
+      String? designBase64;
       String? textPrompt;
 
-      if (_bodySource == _BodySource.myBody && _myBodyImage != null) {
-        bodyBytes = await _myBodyImage!.readAsBytes();
-      }
-
       if (widget.unsplashUrl != null) {
-        designBytes = await _downloadImage(widget.unsplashUrl!);
+        final bytes = await _downloadImage(widget.unsplashUrl!);
+        if (bytes != null) {
+          designBase64 = base64Encode(bytes);
+        }
       } else if (widget.localImagePath != null) {
-        designBytes = await File(widget.localImagePath!).readAsBytes();
+        final bytes = await File(widget.localImagePath!).readAsBytes();
+        designBase64 = base64Encode(bytes);
       }
 
       if (_bodySource == _BodySource.demoCanvas) {
@@ -101,19 +100,59 @@ class _BodyCanvasScreenState extends State<BodyCanvasScreen> {
         textPrompt = widget.prompt;
       }
 
-      final bytes = await _apiService.generateTattooPreview(
-        bodyImage: bodyBytes,
-        designImage: designBytes,
-        textPrompt: textPrompt,
+      final payload = <String, dynamic>{};
+      if (designBase64 != null) {
+        payload['base64Image'] = designBase64;
+      }
+      if (textPrompt != null && textPrompt.trim().isNotEmpty) {
+        payload['prompt'] = textPrompt;
+      }
+
+      final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+      if (baseUrl.isEmpty) {
+        throw Exception('API_BASE_URL not configured in .env');
+      }
+      final normalized = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+      final endpoint = '${normalized}api/generate-tattoo';
+
+      final response = await http.post(
+        Uri.parse(endpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
       );
 
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ResultScreen(imageBytes: bytes),
-        ),
-      );
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ResultScreen(imageBytes: response.bodyBytes),
+          ),
+        );
+      } else {
+        String message = 'Generation failed';
+
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic> &&
+              decoded['success'] == false &&
+              decoded['message'] is String) {
+            message = decoded['message'] as String;
+          }
+        } catch (_) {
+          if (response.body.trim().startsWith('<')) {
+            message = 'Server error - received unexpected response';
+          }
+        }
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: const Color(0xFFD9383A),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
