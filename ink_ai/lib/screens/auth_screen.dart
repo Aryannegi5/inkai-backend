@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../main.dart' show TattooStudioScreen;
+import 'design_source_screen.dart';
 import 'onboarding_flow.dart';
 
 class AuthScreen extends StatelessWidget {
@@ -118,9 +118,11 @@ class _AuthFormState extends State<_AuthForm>
           password: _passwordController.text,
         );
         if (!mounted) return;
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const TattooStudioScreen()),
+          MaterialPageRoute(
+              builder: (context) => const DesignSourceScreen()),
+          (route) => false,
         );
       } else {
         final cred = await FirebaseAuth.instance
@@ -138,9 +140,11 @@ class _AuthFormState extends State<_AuthForm>
           'createdAt': FieldValue.serverTimestamp(),
         });
         if (!mounted) return;
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const OnboardingFlow()),
+          MaterialPageRoute(
+              builder: (context) => const OnboardingFlow()),
+          (route) => false,
         );
       }
     } on FirebaseAuthException catch (e) {

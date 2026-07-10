@@ -12,6 +12,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'firebase_options.dart';
 
 import 'screens/auth_screen.dart';
+import 'screens/design_source_screen.dart';
 import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
@@ -50,21 +51,9 @@ class InkAI extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFFFFFFF),
         useMaterial3: true,
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              backgroundColor: Colors.white,
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasData && snapshot.data != null) {
-            return const TattooStudioScreen();
-          }
-          return const AuthScreen();
-        },
-      ),
+      home: FirebaseAuth.instance.currentUser == null
+          ? const AuthScreen()
+          : const DesignSourceScreen(),
     );
   }
 }
@@ -155,7 +144,7 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
       }
 
       final bytes = await _apiService.generateTattooPreview(
-        image: inputImage,
+        bodyImage: inputImage,
         textPrompt: _tattooInputMode == _TattooInputMode.describe
             ? _tattooPrompt
             : null,
