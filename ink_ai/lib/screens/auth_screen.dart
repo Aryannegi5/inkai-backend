@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -114,17 +115,23 @@ class _AuthFormState extends State<_AuthForm>
           password: _passwordController.text,
         );
       } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        final cred = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null && _nameController.text.trim().isNotEmpty) {
-          await user.updateDisplayName(_nameController.text.trim());
-        }
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(cred.user!.uid)
+            .set({
+          'uid': cred.user!.uid,
+          'fullName': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       }
     } on FirebaseAuthException catch (e) {
-      _showError(_authErrorMessage(e));
+      _showError(e.message ?? 'Authentication failed. Please try again.');
     } catch (e) {
       _showError(
           'Connection error. Please check your internet and try again.');
@@ -133,36 +140,12 @@ class _AuthFormState extends State<_AuthForm>
     }
   }
 
-  String _authErrorMessage(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return 'No account found with this email address';
-      case 'wrong-password':
-        return 'Incorrect password. Please try again';
-      case 'invalid-credential':
-        return 'Invalid email or password combination';
-      case 'invalid-email':
-        return 'The email address is not valid';
-      case 'email-already-in-use':
-        return 'An account already exists with this email';
-      case 'weak-password':
-        return 'Password is too weak. Use at least 6 characters';
-      case 'too-many-requests':
-        return 'Too many login attempts. Please wait and try again';
-      case 'user-disabled':
-        return 'This account has been disabled';
-      case 'operation-not-allowed':
-        return 'Email/password sign in is not enabled';
-      default:
-        return e.message ?? 'Authentication failed. Please try again';
-    }
-  }
-
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
+        backgroundColor: const Color(0xFFD9383A),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),

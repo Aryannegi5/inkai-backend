@@ -6,10 +6,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'firebase_options.dart';
 
 import 'screens/auth_screen.dart';
-import 'screens/onboarding_flow.dart';
 import 'screens/result_screen.dart';
 import 'services/tattoo_api_service.dart';
 
@@ -53,13 +54,14 @@ class InkAI extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
+              backgroundColor: Colors.white,
               body: Center(child: CircularProgressIndicator()),
             );
           }
           if (snapshot.hasData && snapshot.data != null) {
             return const TattooStudioScreen();
           }
-          return const OnboardingFlow();
+          return const AuthScreen();
         },
       ),
     );
@@ -136,6 +138,42 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
       );
 
       if (!mounted) return;
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User not authenticated')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saving ink...')),
+      );
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('users/$uid/tattoos/$timestamp.jpg');
+
+      await storageRef.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      final imageUrl = await storageRef.getDownloadURL();
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('tattoos')
+          .add({
+        'imageUrl': imageUrl,
+        'promptText': _tattooPrompt.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Successfully saved to profile!')),
+      );
 
       await Navigator.push(
         context,
