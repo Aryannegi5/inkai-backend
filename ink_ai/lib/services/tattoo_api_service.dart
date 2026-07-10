@@ -124,7 +124,8 @@ class TattooApiService {
   }
 
   Future<Uint8List> generateTattooPreview({
-    required Uint8List image,
+    Uint8List? bodyImage,
+    Uint8List? designImage,
     String? textPrompt,
   }) async {
     final request = http.MultipartRequest(
@@ -132,9 +133,18 @@ class TattooApiService {
       Uri.parse(endpoint),
     );
 
-    request.files.add(
-      http.MultipartFile.fromBytes('image', image, filename: 'composite.png'),
-    );
+    if (bodyImage != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes('image', bodyImage, filename: 'body.png'),
+      );
+    }
+
+    if (designImage != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+            'design', designImage, filename: 'design.png'),
+      );
+    }
 
     if (textPrompt != null && textPrompt.trim().isNotEmpty) {
       request.fields['prompt'] = textPrompt.trim();

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:image_picker/image_picker.dart';
@@ -69,7 +70,9 @@ class InkAI extends StatelessWidget {
 }
 
 class TattooStudioScreen extends StatefulWidget {
-  const TattooStudioScreen({super.key});
+  final String? prefilledTattooUrl;
+
+  const TattooStudioScreen({super.key, this.prefilledTattooUrl});
 
   @override
   State<TattooStudioScreen> createState() => _TattooStudioScreenState();
@@ -94,6 +97,7 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
   File? _bodyPartImage;
   String? _demoBodyPartPath;
   File? _tattooIdeaImage;
+  Uint8List? _prefilledTattooBytes;
   String _tattooPrompt = '';
   _TattooInputMode _tattooInputMode = _TattooInputMode.upload;
   bool _isLoading = false;
@@ -107,11 +111,31 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
   double _baseScale = 1.0;
   double _baseRotation = 0.0;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.prefilledTattooUrl != null) {
+      _downloadPrefilledImage(widget.prefilledTattooUrl!);
+    }
+  }
+
+  Future<void> _downloadPrefilledImage(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        setState(() {
+          _prefilledTattooBytes = response.bodyBytes;
+        });
+      }
+    } catch (_) {}
+  }
+
   bool get _hasBodyImage => _bodyPartImage != null || _demoBodyPartPath != null;
 
   bool get _canGenerate =>
       _hasBodyImage &&
-      (_tattooIdeaImage != null || _tattooPrompt.trim().isNotEmpty);
+      (_tattooIdeaImage != null || _prefilledTattooBytes != null || _tattooPrompt.trim().isNotEmpty);
 
   Future<void> _generate() async {
     setState(() => _isLoading = true);
@@ -252,13 +276,14 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
       if (picked != null) {
         setState(() {
           _tattooIdeaImage = File(picked.path);
+          _prefilledTattooBytes = null;
         });
       }
     }
   }
 
   bool get _bothImagesSelected =>
-      _hasBodyImage && _tattooIdeaImage != null;
+      _hasBodyImage && (_tattooIdeaImage != null || _prefilledTattooBytes != null);
 
   void _selectDemoBody(String assetPath) {
     setState(() {
@@ -414,6 +439,7 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
                         label: 'Upload Tattoo Idea',
                         icon: Icons.auto_fix_high,
                         hasImage: _tattooIdeaImage,
+                        memoryImage: _prefilledTattooBytes,
                         onTap: () => _pickImage(isBodyPart: false),
                       )
                     : Container(
@@ -563,10 +589,15 @@ class _TattooStudioScreenState extends State<TattooStudioScreen> {
                             ),
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: Image.file(
-                            _tattooIdeaImage!,
-                            fit: BoxFit.contain,
-                          ),
+                          child: _prefilledTattooBytes != null
+                              ? Image.memory(
+                                  _prefilledTattooBytes!,
+                                  fit: BoxFit.contain,
+                                )
+                              : Image.file(
+                                  _tattooIdeaImage!,
+                                  fit: BoxFit.contain,
+                                ),
                         ),
                       ),
                     ),
@@ -587,6 +618,7 @@ class _UploadCard extends StatelessWidget {
   final IconData icon;
   final File? hasImage;
   final String? assetImage;
+  final Uint8List? memoryImage;
   final VoidCallback onTap;
 
   const _UploadCard({
@@ -594,6 +626,7 @@ class _UploadCard extends StatelessWidget {
     required this.icon,
     required this.hasImage,
     this.assetImage,
+    this.memoryImage,
     required this.onTap,
   });
 
@@ -614,22 +647,29 @@ class _UploadCard extends StatelessWidget {
           strokeWidth: 1.5,
           radius: 16,
         ),
-        child: hasImage != null || assetImage != null
+        child: hasImage != null || assetImage != null || memoryImage != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: assetImage != null
-                    ? Image.asset(
-                        assetImage!,
+                child: memoryImage != null
+                    ? Image.memory(
+                        memoryImage!,
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
                       )
-                    : Image.file(
-                        hasImage!,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
+                    : assetImage != null
+                        ? Image.asset(
+                            assetImage!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          )
+                        : Image.file(
+                            hasImage!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                          ),
               )
             : Center(
                 child: Column(

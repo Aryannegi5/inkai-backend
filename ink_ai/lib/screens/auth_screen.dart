@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../main.dart' show TattooStudioScreen;
+import 'onboarding_flow.dart';
+
 class AuthScreen extends StatelessWidget {
   const AuthScreen({super.key});
 
@@ -114,6 +117,11 @@ class _AuthFormState extends State<_AuthForm>
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const TattooStudioScreen()),
+        );
       } else {
         final cred = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(
@@ -129,6 +137,11 @@ class _AuthFormState extends State<_AuthForm>
           'email': _emailController.text.trim(),
           'createdAt': FieldValue.serverTimestamp(),
         });
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const OnboardingFlow()),
+        );
       }
     } on FirebaseAuthException catch (e) {
       _showError(e.message ?? 'Authentication failed. Please try again.');

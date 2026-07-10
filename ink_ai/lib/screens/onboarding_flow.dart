@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'auth_screen.dart';
+import '../main.dart' show TattooStudioScreen;
 
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key});
@@ -25,15 +25,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     );
   }
 
-  Future<void> _autoAdvance() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) _nextPage();
-  }
-
-  void _goToAuth() {
+  void _goToDesignStudio() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const AuthScreen()),
+      MaterialPageRoute(builder: (_) => const TattooStudioScreen()),
     );
   }
 
@@ -46,7 +41,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            _HookScreen(onNext: _nextPage),
+            _HookPage(onNext: _nextPage),
             _SelectionScreen(
               header: "What's your ink status?",
               options: const [
@@ -57,7 +52,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               onSelected: _nextPage,
             ),
             _SelectionScreen(
-              header: 'What is your vibe?',
+              header: "What's your style?",
               options: const [
                 'Minimalist / Fine Line',
                 'American Traditional',
@@ -67,11 +62,31 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               onSelected: _nextPage,
             ),
             _SelectionScreen(
-              header: 'How big are we thinking?',
+              header: 'What are your aesthetic goals?',
               options: const [
-                'Micro / Patchwork',
-                'Palm-sized',
-                'Half-sleeve or larger',
+                'Bold statement',
+                'Subtle & elegant',
+                'Conversation starter',
+                'Deeply personal',
+              ],
+              onSelected: _nextPage,
+            ),
+            _SelectionScreen(
+              header: 'Describe your ideal vibe',
+              options: const [
+                'Dark & moody',
+                'Light & airy',
+                'Colorful',
+                'Black & grey',
+              ],
+              onSelected: _nextPage,
+            ),
+            _SelectionScreen(
+              header: "How's your pain tolerance?",
+              options: const [
+                'Low — I\'m nervous',
+                'Medium — I can handle it',
+                'High — bring it on',
               ],
               onSelected: _nextPage,
             ),
@@ -87,6 +102,34 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               onSelected: _nextPage,
             ),
             _SelectionScreen(
+              header: 'How big are we thinking?',
+              options: const [
+                'Micro / Patchwork',
+                'Palm-sized',
+                'Half-sleeve or larger',
+              ],
+              onSelected: _nextPage,
+            ),
+            _SelectionScreen(
+              header: 'Any placement concerns?',
+              options: const [
+                'Must be work-safe',
+                'Hidden & personal',
+                'Easy to show off',
+                'No concerns',
+              ],
+              onSelected: _nextPage,
+            ),
+            _SelectionScreen(
+              header: 'Are you ready for aftercare?',
+              options: const [
+                'Absolutely — I\'m committed',
+                'I\'ll manage',
+                'Tell me more first',
+              ],
+              onSelected: _nextPage,
+            ),
+            _SelectionScreen(
               header: "What's the story?",
               options: const [
                 'Deeply meaningful',
@@ -97,16 +140,35 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               onSelected: _nextPage,
             ),
             _SelectionScreen(
-              header: 'How do you plan to use this?',
+              header: 'Is this a memorial or tribute?',
               options: const [
-                'Show my artist a reference',
-                'See if I actually like a design',
-                'Just playing around',
+                'Yes — for a loved one',
+                'Yes — for a milestone',
+                'No — purely aesthetic',
+                'Not sure yet',
               ],
               onSelected: _nextPage,
             ),
-            _ProcessingPage(autoAdvance: _autoAdvance),
-            _CompletionPage(onCreateAccount: _goToAuth),
+            _SelectionScreen(
+              header: 'Are you spontaneous or strategic?',
+              options: const [
+                'I plan everything out',
+                'I\'m spontaneous',
+                'A mix of both',
+              ],
+              onSelected: _nextPage,
+            ),
+            _SelectionScreen(
+              header: 'How soon do you want this?',
+              options: const [
+                'ASAP — let\'s go!',
+                'Within a few months',
+                'Just planning ahead',
+                'Just exploring ideas',
+              ],
+              onSelected: _nextPage,
+            ),
+            _ProcessingPage(onComplete: _goToDesignStudio),
           ],
         ),
       ),
@@ -210,9 +272,9 @@ class _SelectionScreen extends StatelessWidget {
 }
 
 class _ProcessingPage extends StatefulWidget {
-  final Future<void> Function() autoAdvance;
+  final VoidCallback onComplete;
 
-  const _ProcessingPage({required this.autoAdvance});
+  const _ProcessingPage({required this.onComplete});
 
   @override
   State<_ProcessingPage> createState() => _ProcessingPageState();
@@ -222,7 +284,9 @@ class _ProcessingPageState extends State<_ProcessingPage> {
   @override
   void initState() {
     super.initState();
-    widget.autoAdvance();
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) widget.onComplete();
+    });
   }
 
   @override
@@ -254,51 +318,6 @@ class _ProcessingPageState extends State<_ProcessingPage> {
             ),
           ),
           const Spacer(),
-        ],
-      ),
-    );
-  }
-}
-
-class _CompletionPage extends StatelessWidget {
-  final VoidCallback onCreateAccount;
-  const _CompletionPage({required this.onCreateAccount});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Spacer(),
-          const Text(
-            'Your studio is ready.',
-            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF111111)),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Create your account to save your custom generations.',
-            style: TextStyle(fontSize: 14, color: Color(0xFF7E7E7E)),
-          ),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: MaterialButton(
-              onPressed: onCreateAccount,
-              height: 54,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-              color: const Color(0xFF000000),
-              elevation: 0,
-              highlightElevation: 0,
-              child: const Text(
-                'Create Account',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFFFFFFFF)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 40),
         ],
       ),
     );
