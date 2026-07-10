@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../main.dart' show TattooStudioScreen;
+import 'design_source_screen.dart';
 
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key});
@@ -28,7 +28,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   void _goToDesignStudio() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const TattooStudioScreen()),
+      MaterialPageRoute(builder: (context) => const DesignSourceScreen()),
     );
   }
 
